@@ -45,12 +45,13 @@ const prefix = '/api';
 app.route(prefix + '/assignments')
   .get(assignment.getAssignments)     // GET /api/assignments -> tous
   .post(assignment.postAssignment)    // POST /api/assignments
-  .put(assignment.updateAssignment);  // PUT /api/assignments
+    // PUT /api/assignments
 
 // Un seul assignment + suppression
 app.route(prefix + '/assignments/:id')
-  .get(assignment.getAssignment)      // GET /api/assignments/:id
-  .delete(assignment.deleteAssignment); 
+  .get(assignment.getAssignment)         // GET /api/assignments/:id
+  .put(assignment.updateAssignment)      // PUT /api/assignments/:id
+  .delete(assignment.deleteAssignment);  // DELETE /api/assignments/:id
 
 // On démarre le serveur avec logique de secours si le port est déjà utilisé
 function startServer(startPort, maxAttempts = 10) {
