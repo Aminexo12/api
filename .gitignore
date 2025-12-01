@@ -1,0 +1,53 @@
+# Node.js dependencies
+node_modules/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build outputs / compiled sources
+dist/
+build/
+.tmp/
+.tmp-*/
+
+# IDE / editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Env & config secrets
+.env
+.env.*
+*.local
+
+# npm / yarn / pnpm caches
+.npm/
+.yarn/
+.pnpm-store/
+
+# Misc
+*.tgz
+*.orig
