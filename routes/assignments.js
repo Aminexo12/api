@@ -14,20 +14,18 @@ async function getAssignment(req, res) {
     res.status(500).json({ error: err.message || err });
   }
 }
-// GET /api/assignments?page=1&limit=20
 async function getAssignments(req, res) {
   try {
     const page = parseInt(req.query.page, 10) || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
 
-    // Pagination via aggregatePaginate
+    
     const aggregate = Assignment.aggregate([]);
     const options = { page, limit };
 
     const pageResult = await Assignment.aggregatePaginate(aggregate, options);
-    // pageResult = { docs, totalDocs, limit, page, totalPages, ... }
-
-    // Stats globales (sur toute la collection)
+    
+    
     const [totalDocs, totalRendus] = await Promise.all([
       Assignment.countDocuments({}),
       Assignment.countDocuments({ rendu: true })
@@ -49,35 +47,54 @@ async function getAssignments(req, res) {
   }
 }
 
-// GET /api/assignments?page=1&limit=20
-// GET /api/assignments?page=1&limit=20
+
 async function getAssignmentsPagines(req, res) {
   try {
-    const page  = parseInt(req.query.page)  || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const page  = parseInt(req.query.page, 10)  || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
     const skip  = (page - 1) * limit;
 
-    // 1) Page courante
-    const assignments = await Assignment.find()
+    const search = (req.query.search || '').trim();  
+    const filter = (req.query.filter || '').trim();  
+
+    
+    const query = {};
+
+   
+    if (search) {
+      query.nom = { $regex: search, $options: 'i' };
+    }
+
+    
+    if (filter === 'rendu') {
+      query.rendu = true;
+    } else if (filter === 'non-rendu') {
+      query.rendu = false;
+    }
+    // Filtre par priorité
+    else if (['Critique', 'Haute', 'Moyenne', 'Basse'].includes(filter)) {
+      query.priorite = filter;
+    }
+
+      const assignments = await Assignment.find(query)
       .sort({ dateDeRendu: 1 })
       .skip(skip)
       .limit(limit);
 
-    // 2) Total global
-    const totalAssignments = await Assignment.countDocuments();
+    
+    const totalAssignments = await Assignment.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalAssignments / limit));
 
-    const totalPages = Math.ceil(totalAssignments / limit);
-
-    // 3) Stats globales
+    // 4) Stats filtrées (rendus / non rendus)
     const statsAgg = await Assignment.aggregate([
+      { $match: query },
       {
         $group: {
           _id: null,
           totalRendus: {
-            // on traite "rendu" comme vrai si c'est vrai / 1 / "true" / "1"
             $sum: {
               $cond: [
-                { $in: [ '$rendu', [true, 1, 'true', '1'] ] },
+                { $in: ['$rendu', [true, 1, 'true', '1']] },
                 1,
                 0
               ]
@@ -88,13 +105,13 @@ async function getAssignmentsPagines(req, res) {
     ]);
 
     const stats = statsAgg[0] || { totalRendus: 0 };
-
     const totalRendus = stats.totalRendus;
     const totalNonRendus = totalAssignments - totalRendus;
 
+    
     return res.json({
-      assignments,
-      totalAssignments,
+      docs: assignments,
+      totalDocs: totalAssignments,
       totalRendus,
       totalNonRendus,
       totalPages,
@@ -109,8 +126,8 @@ async function getAssignmentsPagines(req, res) {
 }
 
 
-// GET /api/assignments/:id  -> un assignment par son champ "id" (string)
-// Exemple : "34"
+
+
 async function getAssignment(req, res) {
   const numericId = Number(req.params.id); // convertir en nombre
   try {
@@ -145,10 +162,9 @@ async function postAssignment(req, res){
 
     const saved = await assignment.save();
 
-    // IMPORTANT : renvoyer l’objet sauvegardé, pas seulement un message
+    
     res.json(saved);
-    // ou bien :
-    // res.json({ message: `${saved.nom} saved!`, assignment: saved });
+    
 
   } catch (err) {
     res.status(400).json({ error: err.message || err });
@@ -190,8 +206,7 @@ async function updateAssignment(req, res) {
   }
 }
 
-// suppression d'un assignment (DELETE)
-// Exemple dans assignments.controller.js ou similaire
+
 
 async function deleteAssignment(req, res) {
   try {
