@@ -14,39 +14,124 @@ async function getAssignment(req, res) {
     res.status(500).json({ error: err.message || err });
   }
 }
+// async function getAssignments(req, res) {
+//   try {
+//     const page = parseInt(req.query.page, 10) || 1;
+//     const limit = parseInt(req.query.limit, 10) || 10;
+
+    
+//     const aggregate = Assignment.aggregate([]);
+//     const options = { page, limit };
+
+//     const pageResult = await Assignment.aggregatePaginate(aggregate, options);
+    
+    
+//     const [totalDocs, totalRendus] = await Promise.all([
+//       Assignment.countDocuments({}),
+//       Assignment.countDocuments({ rendu: true })
+//     ]);
+//     const totalNonRendus = totalDocs - totalRendus;
+
+//     return res.json({
+//       assignments: pageResult.docs,   // les docs de la page
+//       totalAssignments: totalDocs,    // total global
+//       totalRendus,
+//       totalNonRendus,
+//       totalPages: pageResult.totalPages,
+//       page: pageResult.page,
+//       limit: pageResult.limit
+//     });
+//   } catch (err) {
+//     console.error('Erreur getAssignments:', err);
+//     return res.status(500).json({ error: err.message || err });
+//   }
+// }
+
 async function getAssignments(req, res) {
   try {
-    const page = parseInt(req.query.page, 10) || 1;
+    const page  = parseInt(req.query.page, 10)  || 1;
     const limit = parseInt(req.query.limit, 10) || 10;
+    const skip  = (page - 1) * limit;
 
-    
-    const aggregate = Assignment.aggregate([]);
-    const options = { page, limit };
+    const search = (req.query.search || '').trim();  // recherche par nom
+    const filter = (req.query.filter || '').trim();  // 'rendu', 'non-rendu', 'Critique', ...
 
-    const pageResult = await Assignment.aggregatePaginate(aggregate, options);
-    
-    
-    const [totalDocs, totalRendus] = await Promise.all([
-      Assignment.countDocuments({}),
-      Assignment.countDocuments({ rendu: true })
+    // 1) Construction du filtre Mongo
+    const query = {};
+
+    // Recherche par nom (contient, insensible à la casse)
+    if (search) {
+      query.nom = { $regex: search, $options: 'i' };
+    }
+
+    // Filtre par statut
+    if (filter === 'rendu') {
+      query.rendu = true;
+    } else if (filter === 'non-rendu') {
+      query.rendu = false;
+    }
+    // Filtre par priorité
+    else if (['Critique', 'Haute', 'Moyenne', 'Basse'].includes(filter)) {
+      query.priorite = filter;
+    }
+
+    console.log('getAssignments req.query =', req.query);
+    console.log('getAssignments query construit =', query);
+
+    // 2) Récupération de la page courante (sur le résultat filtré)
+    const assignments = await Assignment.find(query)
+      .sort({ dateDeRendu: 1 })
+      .skip(skip)
+      .limit(limit);
+
+    // 3) Total filtré (pour la recherche / filtre)
+    const totalAssignments = await Assignment.countDocuments(query);
+    const totalPages = Math.max(1, Math.ceil(totalAssignments / limit));
+
+    // 4) Stats filtrées (rendus / non rendus)
+    const statsAgg = await Assignment.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: null,
+          totalRendus: {
+            $sum: {
+              $cond: [
+                { $in: ['$rendu', [true, 1, 'true', '1']] },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
     ]);
-    const totalNonRendus = totalDocs - totalRendus;
 
+    const stats = statsAgg[0] || { totalRendus: 0 };
+    const totalRendus = stats.totalRendus;
+    const totalNonRendus = totalAssignments - totalRendus;
+
+    // 5) Réponse compatible avec ton front
     return res.json({
-      assignments: pageResult.docs,   // les docs de la page
-      totalAssignments: totalDocs,    // total global
+      // on garde les deux noms pour être compatible avec l'ancien code
+      assignments,
+      docs: assignments,
+
+      totalAssignments,
+      totalDocs: totalAssignments,
+
       totalRendus,
       totalNonRendus,
-      totalPages: pageResult.totalPages,
-      page: pageResult.page,
-      limit: pageResult.limit
+      totalPages,
+      page,
+      limit
     });
+
   } catch (err) {
-    console.error('Erreur getAssignments:', err);
+    console.error('Erreur getAssignments :', err);
     return res.status(500).json({ error: err.message || err });
   }
 }
-
 
 async function getAssignmentsPagines(req, res) {
   try {
